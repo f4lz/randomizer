@@ -1,0 +1,29 @@
+# Secrets
+.env
+
+# Node
+node_modules/
+dist/
+.next/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.user

@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-randomizer}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: ${DB_USER:-postgres}
+      DATABASE_PASSWORD: ${DB_PASSWORD:-postgres}
+      DATABASE_NAME: ${DB_NAME:-randomizer}
+      JWT_SECRET: ${JWT_SECRET:-changeme_in_production}
+      JWT_EXPIRES_IN: 7d
+      YANDEX_API_KEY: ${YANDEX_API_KEY:-}
+      YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
+      CORS_ORIGIN: http://localhost
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+  bot:
+    build: ./bot
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      API_URL: http://backend:3000
+
+volumes:
+  pgdata:
