@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull, Or } from 'typeorm';
 import { Item } from './entities/item.entity';
 import { CreateItemDto } from './dto/create-item.dto';
 
@@ -11,9 +11,12 @@ export class ItemsService {
     private readonly repo: Repository<Item>,
   ) {}
 
-  findByCategory(categoryId: number): Promise<Item[]> {
+  findByCategory(categoryId: number, userId: number): Promise<Item[]> {
     return this.repo.find({
-      where: { category: { id: categoryId } },
+      where: [
+        { category: { id: categoryId }, owner: IsNull() },
+        { category: { id: categoryId }, owner: { id: userId } },
+      ],
       relations: ['category', 'owner'],
     });
   }

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 import { ItemsService } from '../items/items.service';
@@ -20,7 +20,7 @@ export class CategoriesController {
   }
 
   @Get(':id/items')
-  getItems(@Param('id', ParseIntPipe) id: number) {
-    return this.itemsService.findByCategory(id);
+  getItems(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.itemsService.findByCategory(id, req.user.id);
   }
 }

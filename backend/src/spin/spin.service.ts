@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, In } from 'typeorm';
+import { Repository, Not, In, IsNull } from 'typeorm';
 import { SpinHistory } from './entities/spin-history.entity';
 import { Item } from '../items/entities/item.entity';
 import { ExcludedItem } from '../excluded/entities/excluded-item.entity';
@@ -23,10 +23,11 @@ export class SpinService {
     });
     const excludedIds = excluded.map((e) => e.item.id);
 
-    const where: any = { category: { id: categoryId } };
-    if (excludedIds.length > 0) {
-      where.id = Not(In(excludedIds));
-    }
+    const baseFilter = excludedIds.length > 0 ? { id: Not(In(excludedIds)) } : {};
+    const where = [
+      { category: { id: categoryId }, owner: IsNull(), ...baseFilter },
+      { category: { id: categoryId }, owner: { id: userId }, ...baseFilter },
+    ];
 
     const items = await this.itemsRepo.find({ where, relations: ['category'] });
 
