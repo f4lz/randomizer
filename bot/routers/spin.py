@@ -1,160 +1,177 @@
-from aiogram import Router, F
-from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+import json
+import logging
+from vkbottle.bot import BotLabeler, Message
 from api import api
 from keyboards.inline import (
-    categories_keyboard, spin_result_keyboard,
-    generate_idea_keyboard, main_menu_keyboard,
+    categories_keyboard,
+    spin_result_keyboard,
+    generate_idea_keyboard,
+    main_menu_keyboard,
 )
 from routers.start import ensure_auth, token_store
+from rules import PayloadCmd
 
-router = Router()
+logger = logging.getLogger(__name__)
+labeler = BotLabeler()
 
-# Temporary state: last category per user
+
+def strip_md(text: str) -> str:
+    import re
+    text = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', text)
+    text = re.sub(r'#{1,6}\s*', '', text)
+    text = re.sub(r'`{1,3}', '', text)
+    return text.strip()
+
+
+def get_payload(message: Message) -> dict:
+    p = message.payload
+    if isinstance(p, str):
+        try:
+            return json.loads(p)
+        except Exception:
+            return {}
+    return p or {}
+
+# vk_id -> last spin result
+last_spin: dict[int, dict] = {}
+# vk_id -> last category_id
 last_category: dict[int, int] = {}
-# category_id → category_name cache (filled on first categories fetch)
+# category_id -> category name cache
 category_names: dict[int, str] = {}
+# vk_id -> last generated idea text
+last_idea: dict[int, str] = {}
 
 
-async def show_categories(event: Message | CallbackQuery):
-    user_id = event.from_user.id
-    token = await ensure_auth(user_id, event.from_user.full_name)
-    categories = await api.get_categories(token)
-
-    for cat in categories:
-        category_names[cat["id"]] = cat["name"]
-
-    text = "🎲 <b>Выбери категорию:</b>"
-    markup = categories_keyboard(categories)
-
-    if isinstance(event, CallbackQuery):
-        await event.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
-        await event.answer()
-    else:
-        await event.answer(text, parse_mode="HTML", reply_markup=markup)
-
-
-@router.message(Command("spin"))
-async def cmd_spin(message: Message):
-    await show_categories(message)
-
-
-@router.callback_query(F.data.startswith("cat:"))
-async def on_category_selected(callback: CallbackQuery):
-    category_id = int(callback.data.split(":")[1])
-    user_id = callback.from_user.id
-    token = token_store.get(user_id)
-    if not token:
-        token = await ensure_auth(user_id, callback.from_user.full_name)
-
+async def do_spin(user_id: int, category_id: int, token: str, peer_id: int, ctx_api):
     last_category[user_id] = category_id
-
     try:
         result = await api.spin(category_id, token)
         item = result["item"]
         history_id = result["history_id"]
-
-        await callback.message.edit_text(
-            f"🎲 <b>Результат:</b>\n\n"
-            f"<b>{item['name']}</b>\n\n"
-            f"Что дальше?",
-            parse_mode="HTML",
-            reply_markup=spin_result_keyboard(item["id"], history_id, category_id),
+        last_spin[user_id] = {"item_id": item["id"], "history_id": history_id, "category_id": category_id}
+        await ctx_api.messages.send(
+            peer_id=peer_id,
+            message=f"🎲 Результат:\n\n{item['name']}\n\nЧто дальше?",
+            keyboard=spin_result_keyboard(category_id),
+            random_id=0,
         )
-    except Exception:
-        await callback.message.edit_text(
-            "😔 Нет доступных вариантов в этой категории.\n"
-            "Добавь варианты командой /add",
-            reply_markup=main_menu_keyboard(),
+    except Exception as e:
+        logger.exception("Spin error: %s", e)
+        await ctx_api.messages.send(
+            peer_id=peer_id,
+            message="Нет доступных вариантов в этой категории. Добавь варианты.",
+            keyboard=main_menu_keyboard(),
+            random_id=0,
         )
-    await callback.answer()
 
 
-@router.callback_query(F.data.startswith("spin_again:"))
-async def on_spin_again(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    category_id = last_category.get(user_id)
+@labeler.message(payload={"cmd": "spin"})
+async def handle_spin_menu(message: Message):
+    token = token_store.get(message.peer_id) or await ensure_auth(message.peer_id, message.ctx_api)
+    categories = await api.get_categories(token)
+    for cat in categories:
+        category_names[cat["id"]] = cat["name"]
+    await message.answer("Выбери категорию:", keyboard=categories_keyboard(categories))
+
+
+@labeler.message(PayloadCmd("cat"))
+async def handle_cat(message: Message):
+    category_id = get_payload(message).get("id")
+    user_id = message.from_id
+    token = token_store.get(user_id) or await ensure_auth(user_id, message.ctx_api)
+    await do_spin(user_id, category_id, token, message.peer_id, message.ctx_api)
+
+
+@labeler.message(PayloadCmd("spin_again"))
+async def handle_spin_again(message: Message):
+    user_id = message.from_id
+    category_id = get_payload(message).get("cid") or last_category.get(user_id)
     if not category_id:
-        await callback.answer("Сначала выбери категорию через /spin")
+        await message.answer("Сначала выбери категорию.", keyboard=main_menu_keyboard())
         return
-    callback.data = f"cat:{category_id}"
-    await on_category_selected(callback)
+    token = token_store.get(user_id) or await ensure_auth(user_id, message.ctx_api)
+    await do_spin(user_id, category_id, token, message.peer_id, message.ctx_api)
 
 
-@router.callback_query(F.data.startswith("fav:"))
-async def on_favorite(callback: CallbackQuery):
-    item_id = int(callback.data.split(":")[1])
-    token = token_store.get(callback.from_user.id)
-    if token:
-        try:
-            await api.add_favorite(item_id, token)
-            await callback.answer("❤️ Добавлено в избранное!")
-        except Exception:
-            await callback.answer("Уже в избранном или ошибка")
-    else:
-        await callback.answer("Сначала запусти /start")
-
-
-@router.callback_query(F.data.startswith("exc:"))
-async def on_exclude(callback: CallbackQuery):
-    item_id = int(callback.data.split(":")[1])
-    token = token_store.get(callback.from_user.id)
-    if token:
-        await api.add_excluded(item_id, token)
-        await callback.answer("🚫 Вариант временно исключён")
-        user_id = callback.from_user.id
-        category_id = last_category.get(user_id)
-        if category_id:
-            callback.data = f"cat:{category_id}"
-            await on_category_selected(callback)
-    else:
-        await callback.answer("Сначала запусти /start")
-
-
-@router.callback_query(F.data.startswith("ai:"))
-async def on_ai(callback: CallbackQuery):
-    history_id = int(callback.data.split(":")[1])
-    token = token_store.get(callback.from_user.id)
-    if not token:
-        await callback.answer("Сначала запусти /start")
-        return
-
-    await callback.answer("✨ Генерирую подсказку...")
-    try:
-        result = await api.get_ai(history_id, token)
-        ai_text = result.get("text", "Нет ответа")
-        await callback.message.edit_text(
-            callback.message.text + f"\n\n✨ <b>ИИ советует:</b>\n{ai_text}",
-            parse_mode="HTML",
-            reply_markup=callback.message.reply_markup,
-        )
-    except Exception:
-        await callback.message.answer("Не удалось получить ИИ подсказку")
-
-
-@router.callback_query(F.data.startswith("genidea:"))
-async def on_generate_idea(callback: CallbackQuery):
-    category_id = int(callback.data.split(":")[1])
-    user_id = callback.from_user.id
+@labeler.message(payload={"cmd": "fav"})
+async def handle_fav(message: Message):
+    user_id = message.from_id
     token = token_store.get(user_id)
-    if not token:
-        token = await ensure_auth(user_id, callback.from_user.full_name)
+    spin = last_spin.get(user_id)
+    if not token or not spin:
+        await message.answer("Сначала сделай рандомный выбор.", keyboard=main_menu_keyboard())
+        return
+    try:
+        await api.add_favorite(spin["item_id"], token)
+        await message.answer("❤️ Добавлено в избранное!", keyboard=spin_result_keyboard(spin["category_id"]))
+    except Exception:
+        await message.answer("Уже в избранном или ошибка.", keyboard=spin_result_keyboard(spin["category_id"]))
 
+
+@labeler.message(payload={"cmd": "exc"})
+async def handle_exc(message: Message):
+    user_id = message.from_id
+    token = token_store.get(user_id)
+    spin = last_spin.get(user_id)
+    if not token or not spin:
+        await message.answer("Сначала сделай рандомный выбор.", keyboard=main_menu_keyboard())
+        return
+    await api.add_excluded(spin["item_id"], token)
+    await do_spin(user_id, spin["category_id"], token, message.peer_id, message.ctx_api)
+
+
+@labeler.message(payload={"cmd": "ai"})
+async def handle_ai(message: Message):
+    user_id = message.from_id
+    token = token_store.get(user_id)
+    spin = last_spin.get(user_id)
+    if not token or not spin:
+        await message.answer("Сначала сделай рандомный выбор.", keyboard=main_menu_keyboard())
+        return
+    await message.answer("Генерирую подсказку...")
+    try:
+        result = await api.get_ai(spin["history_id"], token)
+        ai_text = strip_md(result.get("text", "Нет ответа"))
+        await message.answer(f"💡 ИИ советует:\n{ai_text}", keyboard=spin_result_keyboard(spin["category_id"]))
+    except Exception:
+        await message.answer("Не удалось получить ИИ подсказку.", keyboard=main_menu_keyboard())
+
+
+@labeler.message(PayloadCmd("addidea"))
+async def handle_addidea(message: Message):
+    user_id = message.from_id
+    category_id = get_payload(message).get("cid") or last_category.get(user_id)
+    token = token_store.get(user_id)
+    idea = last_idea.get(user_id)
+    if not token or not idea or not category_id:
+        await message.answer("Нет идеи для добавления.", keyboard=main_menu_keyboard())
+        return
+    try:
+        await api.create_item(idea, category_id, token)
+        last_idea.pop(user_id, None)
+        await message.answer(f"Вариант добавлен: {idea}", keyboard=main_menu_keyboard())
+    except Exception:
+        await message.answer("Ошибка при добавлении.", keyboard=main_menu_keyboard())
+
+
+@labeler.message(PayloadCmd("genidea"))
+async def handle_genidea(message: Message):
+    user_id = message.from_id
+    category_id = get_payload(message).get("cid") or last_category.get(user_id)
+    token = token_store.get(user_id) or await ensure_auth(user_id, message.ctx_api)
     cat_name = category_names.get(category_id, "")
     if not cat_name:
-        # Refresh categories if name not cached
-        categories = await api.get_categories(token)
-        for cat in categories:
-            category_names[cat["id"]] = cat["name"]
-        cat_name = category_names.get(category_id, "")
-
-    await callback.answer("🧠 Придумываю идею...")
+        try:
+            categories = await api.get_categories(token)
+            for cat in categories:
+                category_names[cat["id"]] = cat["name"]
+            cat_name = category_names.get(category_id, "")
+        except Exception:
+            pass
+    await message.answer("Придумываю идею...")
     try:
-        idea = await api.generate_idea(cat_name, token)
-        await callback.message.edit_text(
-            f"🧠 <b>Идея от ИИ:</b>\n\n{idea}",
-            parse_mode="HTML",
-            reply_markup=generate_idea_keyboard(category_id),
-        )
+        idea = strip_md(await api.generate_idea(cat_name, token))
+        last_idea[user_id] = idea
+        await message.answer(f"✨ Идея от ИИ:\n\n{idea}", keyboard=generate_idea_keyboard(category_id))
     except Exception:
-        await callback.message.answer("Не удалось сгенерировать идею")
+        await message.answer("Не удалось сгенерировать идею.", keyboard=main_menu_keyboard())

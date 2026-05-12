@@ -38,14 +38,14 @@ export class AuthService {
     return { access_token: token, user: { id: user.id, name: user.name, email: user.email } };
   }
 
-  async loginByTelegram(telegramId: string) {
-    let user = await this.usersService.findByTelegramId(telegramId);
+  async loginByVk(vkId: string) {
+    let user = await this.usersService.findByVkId(vkId);
     if (!user) {
       user = await this.usersService.create({
-        name: `tg_${telegramId}`,
-        email: `tg_${telegramId}@telegram.local`,
+        name: `vk_${vkId}`,
+        email: `vk_${vkId}@vk.local`,
         password: '',
-        telegram_id: telegramId,
+        vk_id: vkId,
       });
     }
     const token = this.jwtService.sign({ sub: user.id });

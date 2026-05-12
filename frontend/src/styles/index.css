@@ -191,9 +191,12 @@ main { flex: 1; padding: 32px 0; }
 .history-item .h-cat { color: var(--accent-light); font-size: .85rem; }
 .history-item .h-date { color: var(--text-muted); font-size: .82rem; }
 .history-item .h-ai {
-  margin-top: 10px; font-size: .88rem; color: var(--text-muted);
-  white-space: pre-wrap; line-height: 1.5;
+  margin-top: 10px; font-size: .88rem; color: var(--text-muted); line-height: 1.5;
 }
+.h-ai p, .ai-block p { margin: 4px 0; }
+.h-ai ul, .h-ai ol, .ai-block ul, .ai-block ol { padding-left: 20px; margin: 4px 0; }
+.h-ai li, .ai-block li { margin: 2px 0; }
+.h-ai strong, .ai-block strong { color: var(--text); }
 
 /* ── Page title ── */
 .page-title { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; }

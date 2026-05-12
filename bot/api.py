@@ -22,20 +22,20 @@ class ApiClient:
             h["Authorization"] = f"Bearer {token}"
         return h
 
-    # ── Auth ──────────────────────────────────────────────────────────────
+    # -- Auth ------------------------------------------------------------------
 
-    async def login_telegram(self, telegram_id: int, name: str) -> dict:
-        """Register or login via Telegram ID, returns {access_token, user}."""
+    async def login_vk(self, vk_id: int, name: str) -> dict:
+        """Register or login via VK ID, returns {access_token}."""
         session = await self._get_session()
         async with session.post(
-            f"{self.base}/auth/telegram",
-            json={"telegram_id": telegram_id, "name": name},
+            f"{self.base}/auth/vk",
+            json={"vk_id": str(vk_id), "name": name},
             headers=self._headers(),
         ) as resp:
             resp.raise_for_status()
             return await resp.json()
 
-    # ── Categories ────────────────────────────────────────────────────────
+    # -- Categories ------------------------------------------------------------
 
     async def get_categories(self, token: str) -> list[dict]:
         session = await self._get_session()
@@ -46,16 +46,7 @@ class ApiClient:
             resp.raise_for_status()
             return await resp.json()
 
-    async def get_category_items(self, category_id: int, token: str) -> list[dict]:
-        session = await self._get_session()
-        async with session.get(
-            f"{self.base}/categories/{category_id}/items",
-            headers=self._headers(token),
-        ) as resp:
-            resp.raise_for_status()
-            return await resp.json()
-
-    # ── Spin ──────────────────────────────────────────────────────────────
+    # -- Spin ------------------------------------------------------------------
 
     async def spin(self, category_id: int, token: str) -> dict:
         session = await self._get_session()
@@ -84,7 +75,7 @@ class ApiClient:
             resp.raise_for_status()
             return await resp.json()
 
-    # ── Favorites ─────────────────────────────────────────────────────────
+    # -- Favorites -------------------------------------------------------------
 
     async def get_favorites(self, token: str) -> list[dict]:
         session = await self._get_session()
@@ -112,7 +103,7 @@ class ApiClient:
         ) as resp:
             resp.raise_for_status()
 
-    # ── Excluded ──────────────────────────────────────────────────────────
+    # -- Excluded --------------------------------------------------------------
 
     async def add_excluded(self, item_id: int, token: str):
         session = await self._get_session()
@@ -122,7 +113,7 @@ class ApiClient:
         ) as resp:
             resp.raise_for_status()
 
-    # ── AI ────────────────────────────────────────────────────────────────
+    # -- AI --------------------------------------------------------------------
 
     async def generate_idea(self, category_name: str, token: str) -> str:
         session = await self._get_session()
@@ -135,7 +126,7 @@ class ApiClient:
             data = await resp.json()
             return data.get("idea", "")
 
-    # ── Items ─────────────────────────────────────────────────────────────
+    # -- Items -----------------------------------------------------------------
 
     async def create_item(self, name: str, category_id: int, token: str) -> dict:
         session = await self._get_session()

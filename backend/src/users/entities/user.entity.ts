@@ -19,7 +19,7 @@ export class User {
   password: string;
 
   @Column({ nullable: true, unique: true })
-  telegram_id: string;
+  vk_id: string;
 
   @CreateDateColumn()
   created_at: Date;

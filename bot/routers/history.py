@@ -1,42 +1,39 @@
-from aiogram import Router
-from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+from vkbottle.bot import BotLabeler, Message
 from api import api
 from keyboards.inline import main_menu_keyboard
 from routers.start import ensure_auth, token_store
 
-router = Router()
+labeler = BotLabeler()
 
 
-async def show_history(event: Message | CallbackQuery):
-    user_id = event.from_user.id
-    token = token_store.get(user_id)
+async def send_history(peer_id: int, ctx_api):
+    token = token_store.get(peer_id)
     if not token:
-        token = await ensure_auth(user_id, event.from_user.full_name)
+        token = await ensure_auth(peer_id, ctx_api)
 
     records = await api.get_history(token)
 
     if not records:
-        text = "📋 <b>История пуста.</b>\nЗапусти рандомайзер командой /spin!"
+        text = "История пуста. Запусти рандомайзер!"
     else:
-        lines = ["📋 <b>Последние выборы:</b>\n"]
+        lines = ["Последние выборы:\n"]
         for rec in records[:10]:
             item = rec.get("item", {})
             cat = item.get("category", {})
             name = item.get("name", "?")
             cat_name = cat.get("name", "")
             created = rec.get("created_at", "")[:10]
-            lines.append(f"• <b>{name}</b> [{cat_name}] — {created}")
+            lines.append(f"- {name} [{cat_name}] — {created}")
         text = "\n".join(lines)
 
-    markup = main_menu_keyboard()
-    if isinstance(event, CallbackQuery):
-        await event.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
-        await event.answer()
-    else:
-        await event.answer(text, parse_mode="HTML", reply_markup=markup)
+    await ctx_api.messages.send(
+        peer_id=peer_id,
+        message=text,
+        keyboard=main_menu_keyboard(),
+        random_id=0,
+    )
 
 
-@router.message(Command("history"))
-async def cmd_history(message: Message):
-    await show_history(message)
+@labeler.message(payload={"cmd": "history"})
+async def handle_history(message: Message):
+    await send_history(message.peer_id, message.ctx_api)

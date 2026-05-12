@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Shuffle, Sparkles, Heart, Trash2, Ban, RefreshCw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import CategoryIcon from '../components/CategoryIcon';
 import { categoriesApi, itemsApi, spinApi, favoritesApi, excludedApi, aiApi } from '../api/api';
 import { Category, Item, SpinResult } from '../types';
 
@@ -61,13 +64,13 @@ export default function CategoryPage() {
 
   const handleFavorite = async (itemId: number) => {
     await favoritesApi.add(itemId);
-    alert('Добавлено в избранное ❤️');
+    alert('Добавлено в избранное');
   };
 
   const handleExclude = async (itemId: number) => {
     await excludedApi.add(itemId);
     setResult(null);
-    alert('Вариант временно исключён 🚫');
+    alert('Вариант временно исключён');
   };
 
   const handleGenerateIdea = async () => {
@@ -89,7 +92,7 @@ export default function CategoryPage() {
       <Link to="/" className="back-link">← Назад</Link>
 
       <p className="page-title">
-        {category?.icon} {category?.name}
+        {category && <CategoryIcon name={category.icon} size={24} />} {category?.name}
       </p>
 
       {/* Кнопки запуска */}
@@ -102,7 +105,7 @@ export default function CategoryPage() {
           animate={spinning ? { rotate: [0, 360] } : { rotate: 0 }}
           transition={spinning ? { duration: 0.6, repeat: Infinity, ease: 'linear' } : {}}
         >
-          {spinning ? '🎲 Выбираем...' : '🎲 Случайный выбор'}
+          <Shuffle size={16} style={{ marginRight: 6 }} />{spinning ? 'Выбираем...' : 'Случайный выбор'}
         </motion.button>
 
         <motion.button
@@ -111,7 +114,7 @@ export default function CategoryPage() {
           disabled={spinning || ideaLoading}
           whileTap={{ scale: 0.95 }}
         >
-          {ideaLoading ? '✨ Думаю...' : '✨ Придумай за меня'}
+          <Sparkles size={16} style={{ marginRight: 6 }} />{ideaLoading ? 'Думаю...' : 'Придумай за меня'}
         </motion.button>
       </div>
 
@@ -124,10 +127,19 @@ export default function CategoryPage() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9 }}
           >
-            <div className="ai-idea-label">✨ Идея от ИИ</div>
+            <div className="ai-idea-label"><Sparkles size={14} style={{ marginRight: 4 }} />Идея от ИИ</div>
             {ideaLoading
               ? <p className="ai-loading">Генерирую идею...</p>
-              : <div className="result-name">{generatedIdea}</div>
+              : <>
+                  <div className="result-name">{generatedIdea}</div>
+                  <div className="result-actions">
+                    <button onClick={async () => {
+                      await itemsApi.create(generatedIdea, categoryId);
+                      setGeneratedIdea('');
+                      loadItems();
+                    }}>Добавить в варианты</button>
+                  </div>
+                </>
             }
           </motion.div>
         )}
@@ -144,12 +156,12 @@ export default function CategoryPage() {
           >
             <div className="result-name">{result.item.name}</div>
             <div className="result-actions">
-              <button onClick={handleSpin}>🔄 Ещё раз</button>
-              <button onClick={() => handleFavorite(result.item.id)}>❤️ В избранное</button>
-              <button onClick={() => handleExclude(result.item.id)}>🚫 Не этот</button>
+              <button onClick={handleSpin}><RefreshCw size={14} style={{ marginRight: 4 }} />Ещё раз</button>
+              <button onClick={() => handleFavorite(result.item.id)}><Heart size={14} style={{ marginRight: 4 }} />В избранное</button>
+              <button onClick={() => handleExclude(result.item.id)}><Ban size={14} style={{ marginRight: 4 }} />Не этот</button>
             </div>
-            {aiLoading && <p className="ai-loading">✨ ИИ готовит информацию...</p>}
-            {aiText && <div className="ai-block">{aiText}</div>}
+            {aiLoading && <p className="ai-loading"><Sparkles size={14} style={{ marginRight: 4 }} />ИИ готовит информацию...</p>}
+            {aiText && <div className="ai-block"><ReactMarkdown>{aiText}</ReactMarkdown></div>}
           </motion.div>
         )}
       </AnimatePresence>
@@ -178,13 +190,11 @@ export default function CategoryPage() {
             <span className="item-name">{item.name}</span>
             <div className="item-actions">
               <button className="btn-icon" title="В избранное"
-                onClick={() => handleFavorite(item.id)}>❤️</button>
+                onClick={() => handleFavorite(item.id)}><Heart size={15} /></button>
               <button className="btn-icon" title="Исключить"
-                onClick={() => handleExclude(item.id)}>🚫</button>
-              {item.owner && (
-                <button className="btn-icon" title="Удалить"
-                  onClick={() => handleDelete(item.id)}>🗑️</button>
-              )}
+                onClick={() => handleExclude(item.id)}><Ban size={15} /></button>
+              <button className="btn-icon" title="Удалить"
+                onClick={() => handleDelete(item.id)}><Trash2 size={15} /></button>
             </div>
           </div>
         ))}

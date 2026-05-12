@@ -22,10 +22,10 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
-  @Post('telegram')
+  @Post('vk')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Авторизация через Telegram ID' })
-  telegram(@Body() body: { telegram_id: string }) {
-    return this.authService.loginByTelegram(body.telegram_id);
+  @ApiOperation({ summary: 'Авторизация через VK ID' })
+  vk(@Body() body: { vk_id: string }) {
+    return this.authService.loginByVk(body.vk_id);
   }
 }

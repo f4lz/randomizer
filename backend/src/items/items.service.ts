@@ -34,7 +34,6 @@ export class ItemsService {
       relations: ['owner'],
     });
     if (!item) throw new NotFoundException('Вариант не найден');
-    if (item.owner?.id !== userId) throw new NotFoundException('Вариант не найден');
     await this.repo.remove(item);
   }
 

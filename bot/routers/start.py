@@ -1,60 +1,40 @@
-from aiogram import Router
-from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery
+from vkbottle.bot import BotLabeler, Message
 from api import api
 from keyboards.inline import main_menu_keyboard
 
-router = Router()
+labeler = BotLabeler()
 
-# Storage: telegram_id → access_token (in-memory, sufficient for diploma scope)
+# vk_id -> JWT token cache
 token_store: dict[int, str] = {}
 
 
-async def ensure_auth(user_id: int, full_name: str) -> str:
+async def ensure_auth(vk_id: int, ctx_api=None) -> str:
     """Return cached token or authenticate via backend."""
-    if user_id not in token_store:
-        result = await api.login_telegram(user_id, full_name)
-        token_store[user_id] = result["access_token"]
-    return token_store[user_id]
+    if vk_id not in token_store:
+        name = ""
+        if ctx_api:
+            try:
+                users = await ctx_api.users.get([vk_id])
+                if users:
+                    name = f"{users[0].first_name} {users[0].last_name}".strip()
+            except Exception:
+                pass
+        result = await api.login_vk(vk_id, name)
+        token_store[vk_id] = result["access_token"]
+    return token_store[vk_id]
 
 
-@router.message(CommandStart())
+@labeler.message(text=["начать", "старт", "start", "/start", "привет"])
+@labeler.message(payload={"command": "start"})
 async def cmd_start(message: Message):
-    token = await ensure_auth(message.from_user.id, message.from_user.full_name)
+    await ensure_auth(message.from_id, message.ctx_api)
     await message.answer(
-        f"👋 Привет, <b>{message.from_user.first_name}</b>!\n\n"
-        "Я помогу тебе выбрать, когда сделать выбор сложно 🎲\n"
+        "Привет! Я помогу тебе выбрать, когда сделать выбор сложно.\n"
         "Выбери действие:",
-        parse_mode="HTML",
-        reply_markup=main_menu_keyboard(),
+        keyboard=main_menu_keyboard(),
     )
 
 
-@router.message(Command("menu"))
+@labeler.message(payload={"cmd": "menu"})
 async def cmd_menu(message: Message):
-    await ensure_auth(message.from_user.id, message.from_user.full_name)
-    await message.answer("Главное меню:", reply_markup=main_menu_keyboard())
-
-
-@router.callback_query(lambda c: c.data == "menu:spin")
-async def menu_spin(callback: CallbackQuery):
-    from routers.spin import show_categories
-    await show_categories(callback)
-
-
-@router.callback_query(lambda c: c.data == "menu:history")
-async def menu_history(callback: CallbackQuery):
-    from routers.history import show_history
-    await show_history(callback)
-
-
-@router.callback_query(lambda c: c.data == "menu:favorites")
-async def menu_favorites(callback: CallbackQuery):
-    from routers.favorites import show_favorites
-    await show_favorites(callback)
-
-
-@router.callback_query(lambda c: c.data == "menu:add")
-async def menu_add(callback: CallbackQuery):
-    from routers.items import show_add_categories
-    await show_add_categories(callback)
+    await message.answer("Главное меню:", keyboard=main_menu_keyboard())

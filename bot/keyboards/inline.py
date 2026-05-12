@@ -1,55 +1,68 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from vkbottle import Keyboard, Text
+
+ICON_EMOJI = {
+    "UtensilsCrossed": "🍽️",
+    "MapPin": "📍",
+    "Clapperboard": "🎬",
+    "Target": "🎯",
+    "Rocket": "🚀",
+}
 
 
-def categories_keyboard(categories: list[dict], prefix: str = "cat") -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    for cat in categories:
-        builder.button(
-            text=f"{cat['icon']} {cat['name']}",
-            callback_data=f"{prefix}:{cat['id']}",
-        )
-    builder.adjust(2)
-    return builder.as_markup()
+def icon_to_emoji(name: str) -> str:
+    return ICON_EMOJI.get(name, "")
 
 
-def spin_result_keyboard(item_id: int, history_id: int, category_id: int) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🔄 Ещё раз", callback_data=f"spin_again:{item_id}")
-    builder.button(text="❤️ В избранное", callback_data=f"fav:{item_id}")
-    builder.button(text="🚫 Не этот", callback_data=f"exc:{item_id}")
-    builder.button(text="✨ ИИ подсказка", callback_data=f"ai:{history_id}")
-    builder.button(text="🧠 Придумай идею", callback_data=f"genidea:{category_id}")
-    builder.adjust(2)
-    return builder.as_markup()
+def main_menu_keyboard() -> str:
+    kb = Keyboard(one_time=False)
+    kb.add(Text("Рандомайзер", {"cmd": "spin"}))
+    kb.add(Text("История", {"cmd": "history"}))
+    kb.row()
+    kb.add(Text("Избранное", {"cmd": "favorites"}))
+    kb.add(Text("Добавить вариант", {"cmd": "add"}))
+    return kb.get_json()
 
 
-def generate_idea_keyboard(category_id: int) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🔄 Ещё идею", callback_data=f"genidea:{category_id}")
-    builder.button(text="🎲 Случайный выбор", callback_data=f"cat:{category_id}")
-    builder.button(text="🏠 Меню", callback_data="menu:spin")
-    builder.adjust(2)
-    return builder.as_markup()
+def categories_keyboard(categories: list[dict], prefix: str = "cat") -> str:
+    kb = Keyboard(one_time=True)
+    for i, cat in enumerate(categories):
+        label = f"{icon_to_emoji(cat.get('icon', ''))} {cat['name']}".strip()
+        kb.add(Text(label, {"cmd": prefix, "id": cat["id"]}))
+        if i % 2 == 1:
+            kb.row()
+    return kb.get_json()
 
 
-def favorites_keyboard(favorites: list[dict]) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    for fav in favorites:
+def spin_result_keyboard(category_id: int) -> str:
+    kb = Keyboard(one_time=False)
+    kb.add(Text("🔄 Ещё раз", {"cmd": "spin_again", "cid": category_id}))
+    kb.add(Text("❤️ В избранное", {"cmd": "fav"}))
+    kb.row()
+    kb.add(Text("🚫 Не этот", {"cmd": "exc"}))
+    kb.add(Text("💡 ИИ подсказка", {"cmd": "ai"}))
+    kb.row()
+    kb.add(Text("✨ Придумай идею", {"cmd": "genidea", "cid": category_id}))
+    kb.add(Text("🏠 Меню", {"cmd": "menu"}))
+    return kb.get_json()
+
+
+def generate_idea_keyboard(category_id: int) -> str:
+    kb = Keyboard(one_time=False)
+    kb.add(Text("➕ Добавить в варианты", {"cmd": "addidea", "cid": category_id}))
+    kb.row()
+    kb.add(Text("🔄 Ещё идею", {"cmd": "genidea", "cid": category_id}))
+    kb.add(Text("🎲 Случайный выбор", {"cmd": "spin_again", "cid": category_id}))
+    kb.row()
+    kb.add(Text("🏠 Меню", {"cmd": "menu"}))
+    return kb.get_json()
+
+
+def favorites_keyboard(favorites: list[dict]) -> str:
+    kb = Keyboard(one_time=False)
+    for i, fav in enumerate(favorites):
         item = fav.get("item", {})
-        builder.button(
-            text=f"🗑 {item.get('name', '?')}",
-            callback_data=f"unfav:{item.get('id')}",
-        )
-    builder.adjust(1)
-    return builder.as_markup()
-
-
-def main_menu_keyboard() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🎲 Рандомайзер", callback_data="menu:spin")
-    builder.button(text="📋 История", callback_data="menu:history")
-    builder.button(text="❤️ Избранное", callback_data="menu:favorites")
-    builder.button(text="➕ Добавить вариант", callback_data="menu:add")
-    builder.adjust(2)
-    return builder.as_markup()
+        name = item.get("name", "?")[:25]
+        kb.add(Text(f"❌ {name}", {"cmd": "unfav", "idx": i}))
+        kb.row()
+    kb.add(Text("🏠 Меню", {"cmd": "menu"}))
+    return kb.get_json()

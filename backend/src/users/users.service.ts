@@ -22,12 +22,12 @@ export class UsersService {
     return this.repo.findOneBy({ id });
   }
 
-  findByTelegramId(telegram_id: string): Promise<User | null> {
-    return this.repo.findOneBy({ telegram_id });
+  findByVkId(vk_id: string): Promise<User | null> {
+    return this.repo.findOneBy({ vk_id });
   }
 
-  async linkTelegram(userId: number, telegram_id: string): Promise<User> {
-    await this.repo.update(userId, { telegram_id });
+  async linkVk(userId: number, vk_id: string): Promise<User> {
+    await this.repo.update(userId, { vk_id });
     return this.repo.findOneBy({ id: userId });
   }
 }

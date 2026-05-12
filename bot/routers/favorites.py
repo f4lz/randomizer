@@ -1,50 +1,57 @@
-from aiogram import Router, F
-from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+import json
+from vkbottle.bot import BotLabeler, Message
 from api import api
 from keyboards.inline import favorites_keyboard, main_menu_keyboard
 from routers.start import ensure_auth, token_store
+from rules import PayloadCmd
 
-router = Router()
+labeler = BotLabeler()
+
+# vk_id -> last loaded favorites list
+last_favs: dict[int, list] = {}
 
 
-async def show_favorites(event: Message | CallbackQuery):
-    user_id = event.from_user.id
-    token = token_store.get(user_id)
-    if not token:
-        token = await ensure_auth(user_id, event.from_user.full_name)
-
+async def send_favorites(peer_id: int, ctx_api):
+    token = token_store.get(peer_id) or await ensure_auth(peer_id, ctx_api)
     favs = await api.get_favorites(token)
+    last_favs[peer_id] = favs
 
     if not favs:
-        text = "❤️ <b>Избранное пусто.</b>\nДобавляй варианты кнопкой ❤️ после рандомайзера."
-        markup = main_menu_keyboard()
+        await ctx_api.messages.send(
+            peer_id=peer_id,
+            message="Избранное пусто. Добавляй варианты кнопкой после рандомайзера.",
+            keyboard=main_menu_keyboard(),
+            random_id=0,
+        )
     else:
-        text = "❤️ <b>Избранное</b>\nНажми на вариант чтобы удалить:"
-        markup = favorites_keyboard(favs)
-
-    if isinstance(event, CallbackQuery):
-        await event.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
-        await event.answer()
-    else:
-        await event.answer(text, parse_mode="HTML", reply_markup=markup)
+        await ctx_api.messages.send(
+            peer_id=peer_id,
+            message="Избранное. Нажми на вариант чтобы удалить:",
+            keyboard=favorites_keyboard(favs),
+            random_id=0,
+        )
 
 
-@router.message(Command("favorites"))
-async def cmd_favorites(message: Message):
-    await show_favorites(message)
+@labeler.message(payload={"cmd": "favorites"})
+async def handle_favorites(message: Message):
+    await send_favorites(message.peer_id, message.ctx_api)
 
 
-@router.callback_query(F.data.startswith("unfav:"))
-async def on_unfavorite(callback: CallbackQuery):
-    item_id = int(callback.data.split(":")[1])
-    token = token_store.get(callback.from_user.id)
-    if token:
-        try:
-            await api.remove_favorite(item_id, token)
-            await callback.answer("Удалено из избранного")
-            await show_favorites(callback)
-        except Exception:
-            await callback.answer("Ошибка при удалении")
-    else:
-        await callback.answer("Сначала запусти /start")
+@labeler.message(PayloadCmd("unfav"))
+async def handle_unfav(message: Message):
+    user_id = message.from_id
+    token = token_store.get(user_id)
+    p = json.loads(message.payload) if isinstance(message.payload, str) else (message.payload or {})
+    idx = p.get("idx")
+    favs = last_favs.get(user_id, [])
+
+    if not token or idx is None or idx >= len(favs):
+        await message.answer("Ошибка. Обнови список избранного.", keyboard=main_menu_keyboard())
+        return
+
+    item_id = favs[idx].get("item", {}).get("id")
+    try:
+        await api.remove_favorite(item_id, token)
+        await send_favorites(message.peer_id, message.ctx_api)
+    except Exception:
+        await message.answer("Ошибка при удалении.", keyboard=main_menu_keyboard())

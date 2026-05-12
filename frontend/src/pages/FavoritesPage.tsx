@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Heart, Trash2 } from 'lucide-react';
 import { favoritesApi } from '../api/api';
 import { Favorite } from '../types';
 
@@ -15,7 +16,7 @@ export default function FavoritesPage() {
 
   return (
     <div className="container">
-      <p className="page-title">❤️ Избранное</p>
+      <p className="page-title"><Heart size={20} style={{ verticalAlign: 'middle', marginRight: 8 }} />Избранное</p>
       <p className="page-sub">Твои сохранённые варианты</p>
 
       {favorites.length === 0 && (
@@ -31,7 +32,7 @@ export default function FavoritesPage() {
             <span className="item-name">{fav.item?.name}</span>
           </div>
           <button className="btn-icon" title="Удалить из избранного"
-            onClick={() => handleRemove(fav.item.id)}>🗑️</button>
+            onClick={() => handleRemove(fav.item.id)}><Trash2 size={16} /></button>
         </div>
       ))}
     </div>

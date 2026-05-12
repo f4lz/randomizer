@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { ClipboardList } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { spinApi } from '../api/api';
 import { HistoryRecord } from '../types';
 
@@ -17,7 +19,7 @@ export default function HistoryPage() {
 
   return (
     <div className="container">
-      <p className="page-title">📋 История выборов</p>
+      <p className="page-title"><ClipboardList size={20} style={{ verticalAlign: 'middle', marginRight: 8 }} />История выборов</p>
       <p className="page-sub">Последние 20 результатов</p>
 
       {history.length === 0 && (
@@ -34,7 +36,7 @@ export default function HistoryPage() {
             <span className="h-date">{formatDate(record.created_at)}</span>
           </div>
           {record.ai_response && (
-            <p className="h-ai">{record.ai_response}</p>
+            <div className="h-ai"><ReactMarkdown>{record.ai_response}</ReactMarkdown></div>
           )}
         </div>
       ))}

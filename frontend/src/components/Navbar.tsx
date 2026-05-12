@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
+import { Shuffle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
@@ -13,7 +14,7 @@ export default function Navbar() {
   return (
     <nav>
       <div className="inner">
-        <NavLink to="/" className="logo">🎲 Рандомайзер</NavLink>
+        <NavLink to="/" className="logo"><Shuffle size={18} /> Рандомайзер</NavLink>
         <div className="nav-links">
           <NavLink to="/" end>Категории</NavLink>
           <NavLink to="/history">История</NavLink>
