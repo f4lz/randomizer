@@ -20,6 +20,12 @@ export default function CategoryPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [generatedIdea, setGeneratedIdea] = useState('');
   const [ideaLoading, setIdeaLoading] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const loadItems = () =>
     categoriesApi.getItems(categoryId).then(({ data }) => setItems(data));
@@ -42,7 +48,7 @@ export default function CategoryPage() {
       const { data: ai } = await spinApi.getAi(data.history_id);
       setAiText(ai.text);
     } catch (e: any) {
-      alert(e.response?.data?.message || 'Нет доступных вариантов');
+      showToast(e.response?.data?.message || 'Нет доступных вариантов', 'error');
     } finally {
       setSpinning(false);
       setAiLoading(false);
@@ -64,13 +70,13 @@ export default function CategoryPage() {
 
   const handleFavorite = async (itemId: number) => {
     await favoritesApi.add(itemId);
-    alert('Добавлено в избранное');
+    showToast('Добавлено в избранное ❤️');
   };
 
   const handleExclude = async (itemId: number) => {
     await excludedApi.add(itemId);
     setResult(null);
-    alert('Вариант временно исключён');
+    showToast('Вариант исключён, крутим заново');
   };
 
   const handleGenerateIdea = async () => {
@@ -131,7 +137,7 @@ export default function CategoryPage() {
             {ideaLoading
               ? <p className="ai-loading">Генерирую идею...</p>
               : <>
-                  <div className="result-name">{generatedIdea}</div>
+                  <div className="ai-block"><ReactMarkdown>{generatedIdea}</ReactMarkdown></div>
                   <div className="result-actions">
                     <button onClick={async () => {
                       await itemsApi.create(generatedIdea, categoryId);
@@ -199,6 +205,19 @@ export default function CategoryPage() {
           </div>
         ))}
       </div>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            className={`toast toast-${toast.type}`}
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+          >
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
